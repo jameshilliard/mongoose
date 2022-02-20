@@ -3394,11 +3394,12 @@ static long mg_sock_recv(struct mg_connection *c, void *buf, size_t len) {
 static long read_conn(struct mg_connection *c) {
   long n = -1;
   if (c->recv.len >= MG_MAX_RECV_BUF_SIZE) {
-    mg_error(c, "max_recv_buf_size reached");
+    return n;
   } else if (c->recv.size - c->recv.len < MG_IO_SIZE &&
+             c->recv.size + MG_IO_SIZE <= MG_MAX_RECV_BUF_SIZE &&
              !mg_iobuf_resize(&c->recv, c->recv.size + MG_IO_SIZE)) {
     mg_error(c, "oom");
-  } else {
+  } else if (c->recv.size > c->recv.len) {
     char *buf = (char *) &c->recv.buf[c->recv.len];
     size_t len = c->recv.size - c->recv.len;
     n = c->is_tls ? mg_tls_recv(c, buf, len) : mg_sock_recv(c, buf, len);
@@ -3685,7 +3686,7 @@ void mg_mgr_poll(struct mg_mgr *mgr, int ms) {
     } else if (c->is_tls_hs) {
       if ((c->is_readable || c->is_writable)) mg_tls_handshake(c);
     } else {
-      if (c->is_readable) read_conn(c);
+      if (c->is_readable && read_conn(c) > 0) (void) 0;
       if (c->is_writable) write_conn(c);
     }
 
